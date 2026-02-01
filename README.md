@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🐻 Babu Dashboard
+
+A beautiful AI assistant dashboard for tracking tasks and projects. Built with Next.js, Tailwind, and shadcn/ui.
+
+![Status](https://img.shields.io/badge/status-MVP-green)
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+
+## Features
+
+- **Kanban Board** - Drag & drop tasks between To Do, In Progress, Done, and Archived
+- **Status Card** - Visual indicator for assistant status (Online/Thinking/Offline)
+- **Notes Section** - Quick notes with auto-save
+- **Action Log** - Track all task changes automatically
+- **Dark Theme** - Sleek zinc color palette
+
+## Tech Stack
+
+- **Framework:** Next.js 14 (App Router)
+- **Styling:** TailwindCSS + shadcn/ui
+- **Database:** SQLite (better-sqlite3)
+- **Drag & Drop:** @hello-pangea/dnd
+- **Icons:** Lucide React
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+# Install dependencies
+npm install
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Build for production
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API Routes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/tasks` | List all tasks |
+| POST | `/api/tasks` | Create a task |
+| PATCH | `/api/tasks/[id]` | Update a task |
+| DELETE | `/api/tasks/[id]` | Delete a task |
+| GET | `/api/notes` | Get notes |
+| PUT | `/api/notes` | Save notes |
+| GET | `/api/actions` | Get action log |
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── app/
+│   ├── page.tsx              # Main dashboard
+│   ├── layout.tsx            # Root layout
+│   └── api/                   # API routes
+├── components/
+│   ├── dashboard/            # Dashboard components
+│   └── ui/                   # shadcn/ui components
+└── lib/
+    ├── db.ts                 # SQLite connection
+    └── types.ts              # TypeScript types
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Roadmap
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [ ] Deploy to Vercel (switch to cloud DB)
+- [ ] Custom avatar generation
+- [ ] Real-time sync
+- [ ] Mobile responsive layout
+- [ ] Task due dates & priorities
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+MIT
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+Built with ❤️ by Babu 🐻
