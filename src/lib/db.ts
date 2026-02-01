@@ -1,97 +1,114 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import { neon } from '@neondatabase/serverless';
 
-// Ensure data directory exists
-const dataDir = path.join(process.cwd(), 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+const sql = neon(process.env.DATABASE_URL!);
+
+// Initialize tables (run once on first request)
+let initialized = false;
+
+async function initDb() {
+  if (initialized) return;
+  
+  await sql`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      status TEXT DEFAULT 'todo' CHECK(status IN ('todo', 'in_progress', 'done', 'archived')),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      position INTEGER DEFAULT 0
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS action_log (
+      id TEXT PRIMARY KEY,
+      action TEXT NOT NULL,
+      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS notes (
+      id TEXT PRIMARY KEY DEFAULT 'main',
+      content TEXT DEFAULT ''
+    )
+  `;
+
+  // Ensure main notes entry exists
+  await sql`INSERT INTO notes (id, content) VALUES ('main', '') ON CONFLICT (id) DO NOTHING`;
+
+  initialized = true;
 }
-
-const db = new Database(path.join(dataDir, 'dashboard.db'));
-
-// Initialize tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS tasks (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    status TEXT DEFAULT 'todo' CHECK(status IN ('todo', 'in_progress', 'done', 'archived')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    position INTEGER DEFAULT 0
-  );
-
-  CREATE TABLE IF NOT EXISTS action_log (
-    id TEXT PRIMARY KEY,
-    action TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS notes (
-    id TEXT PRIMARY KEY DEFAULT 'main',
-    content TEXT DEFAULT ''
-  );
-
-  -- Ensure main notes entry exists
-  INSERT OR IGNORE INTO notes (id, content) VALUES ('main', '');
-`);
-
-// Prepared statements for tasks
-const getAllTasks = db.prepare('SELECT * FROM tasks ORDER BY position ASC, created_at DESC');
-const getTaskById = db.prepare('SELECT * FROM tasks WHERE id = ?');
-const createTask = db.prepare(`
-  INSERT INTO tasks (id, title, status, position) 
-  VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE status = ?))
-`);
-const updateTask = db.prepare(`
-  UPDATE tasks SET title = ?, status = ?, position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-`);
-const deleteTask = db.prepare('DELETE FROM tasks WHERE id = ?');
-
-// Prepared statements for notes
-const getNotes = db.prepare('SELECT content FROM notes WHERE id = ?');
-const updateNotes = db.prepare('INSERT OR REPLACE INTO notes (id, content) VALUES (?, ?)');
-
-// Prepared statements for action log
-const getActions = db.prepare('SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 50');
-const createAction = db.prepare('INSERT INTO action_log (id, action) VALUES (?, ?)');
 
 export const dbOps = {
   // Tasks
-  getAllTasks: () => getAllTasks.all(),
-  getTaskById: (id: string) => getTaskById.get(id),
-  createTask: (id: string, title: string, status: string = 'todo') => {
-    createTask.run(id, title, status, status);
-    createAction.run(crypto.randomUUID(), `Created task: "${title}"`);
-    return getTaskById.get(id);
+  getAllTasks: async () => {
+    await initDb();
+    return sql`SELECT * FROM tasks ORDER BY position ASC, created_at DESC`;
   },
-  updateTask: (id: string, title: string, status: string, position: number) => {
-    const oldTask = getTaskById.get(id) as { title: string; status: string } | undefined;
-    updateTask.run(title, status, position, id);
+
+  getTaskById: async (id: string) => {
+    await initDb();
+    const rows = await sql`SELECT * FROM tasks WHERE id = ${id}`;
+    return rows[0];
+  },
+
+  createTask: async (id: string, title: string, status: string = 'todo') => {
+    await initDb();
+    const posResult = await sql`SELECT COALESCE(MAX(position), 0) + 1 as pos FROM tasks WHERE status = ${status}`;
+    const position = posResult[0]?.pos || 1;
+    
+    await sql`INSERT INTO tasks (id, title, status, position) VALUES (${id}, ${title}, ${status}, ${position})`;
+    await sql`INSERT INTO action_log (id, action) VALUES (${crypto.randomUUID()}, ${'Created task: "' + title + '"'})`;
+    
+    const rows = await sql`SELECT * FROM tasks WHERE id = ${id}`;
+    return rows[0];
+  },
+
+  updateTask: async (id: string, title: string, status: string, position: number) => {
+    await initDb();
+    const oldRows = await sql`SELECT * FROM tasks WHERE id = ${id}`;
+    const oldTask = oldRows[0] as { title: string; status: string } | undefined;
+    
+    await sql`UPDATE tasks SET title = ${title}, status = ${status}, position = ${position}, updated_at = CURRENT_TIMESTAMP WHERE id = ${id}`;
+    
     if (oldTask && oldTask.status !== status) {
-      createAction.run(crypto.randomUUID(), `Moved "${title}" to ${status.replace('_', ' ')}`);
+      await sql`INSERT INTO action_log (id, action) VALUES (${crypto.randomUUID()}, ${'Moved "' + title + '" to ' + status.replace('_', ' ')})`;
     }
-    return getTaskById.get(id);
+    
+    const rows = await sql`SELECT * FROM tasks WHERE id = ${id}`;
+    return rows[0];
   },
-  deleteTask: (id: string) => {
-    const task = getTaskById.get(id) as { title: string } | undefined;
-    deleteTask.run(id);
+
+  deleteTask: async (id: string) => {
+    await initDb();
+    const rows = await sql`SELECT * FROM tasks WHERE id = ${id}`;
+    const task = rows[0] as { title: string } | undefined;
+    
+    await sql`DELETE FROM tasks WHERE id = ${id}`;
+    
     if (task) {
-      createAction.run(crypto.randomUUID(), `Deleted task: "${task.title}"`);
+      await sql`INSERT INTO action_log (id, action) VALUES (${crypto.randomUUID()}, ${'Deleted task: "' + task.title + '"'})`;
     }
   },
 
   // Notes
-  getNotes: () => {
-    const result = getNotes.get('main') as { content: string } | undefined;
-    return result?.content || '';
+  getNotes: async () => {
+    await initDb();
+    const rows = await sql`SELECT content FROM notes WHERE id = 'main'`;
+    return rows[0]?.content || '';
   },
-  updateNotes: (content: string) => {
-    updateNotes.run('main', content);
+
+  updateNotes: async (content: string) => {
+    await initDb();
+    await sql`INSERT INTO notes (id, content) VALUES ('main', ${content}) ON CONFLICT (id) DO UPDATE SET content = ${content}`;
   },
 
   // Action log
-  getActions: () => getActions.all(),
+  getActions: async () => {
+    await initDb();
+    return sql`SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 50`;
+  },
 };
 
-export default db;
+export default sql;

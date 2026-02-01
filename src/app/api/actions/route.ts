@@ -3,7 +3,7 @@ import { dbOps } from '@/lib/db';
 
 export async function GET() {
   try {
-    const actions = dbOps.getActions();
+    const actions = await dbOps.getActions();
     return NextResponse.json(actions);
   } catch (error) {
     console.error('Failed to fetch actions:', error);

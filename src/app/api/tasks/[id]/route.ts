@@ -10,12 +10,12 @@ export async function PATCH(
     const body = await request.json();
     const { title, status, position } = body;
 
-    const existingTask = dbOps.getTaskById(id) as { title: string; status: string; position: number } | undefined;
+    const existingTask = await dbOps.getTaskById(id) as { title: string; status: string; position: number } | undefined;
     if (!existingTask) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
-    const task = dbOps.updateTask(
+    const task = await dbOps.updateTask(
       id,
       title ?? existingTask.title,
       status ?? existingTask.status,
@@ -35,7 +35,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    dbOps.deleteTask(id);
+    await dbOps.deleteTask(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete task:', error);

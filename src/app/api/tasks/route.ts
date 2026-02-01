@@ -3,7 +3,7 @@ import { dbOps } from '@/lib/db';
 
 export async function GET() {
   try {
-    const tasks = dbOps.getAllTasks();
+    const tasks = await dbOps.getAllTasks();
     return NextResponse.json(tasks);
   } catch (error) {
     console.error('Failed to fetch tasks:', error);
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     const id = crypto.randomUUID();
-    const task = dbOps.createTask(id, title.trim(), status);
+    const task = await dbOps.createTask(id, title.trim(), status);
     
     return NextResponse.json(task, { status: 201 });
   } catch (error) {

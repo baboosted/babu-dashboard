@@ -3,7 +3,7 @@ import { dbOps } from '@/lib/db';
 
 export async function GET() {
   try {
-    const content = dbOps.getNotes();
+    const content = await dbOps.getNotes();
     return NextResponse.json({ content });
   } catch (error) {
     console.error('Failed to fetch notes:', error);
@@ -19,7 +19,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Content must be a string' }, { status: 400 });
     }
 
-    dbOps.updateNotes(content);
+    await dbOps.updateNotes(content);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to update notes:', error);
